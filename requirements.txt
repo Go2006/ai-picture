@@ -1,0 +1,29 @@
+# ============================================
+# AI 旁白剪辑项目 - 依赖
+# 安装: pip install -r requirements.txt
+# ============================================
+
+# --- Web 框架 ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.19          # 文件上传
+
+# --- 异步任务 ---
+celery[redis]==5.4.0
+redis==5.2.1
+
+# --- AI 相关 ---
+anthropic==0.42.0                  # Claude API
+openai==1.58.1                     # 也可以用 OpenAI 兼容接口
+httpx==0.28.1                      # 异步 HTTP 请求
+
+# --- TTS ---
+edge-tts==7.2.8                   # 免费微软 TTS（内部件被 SSML 直连路径复用，钉住版本）
+
+# --- 视频处理 ---
+moviepy==2.0.0                     # 视频操作（底层调 FFmpeg）
+
+# --- 工具 ---
+python-dotenv==1.0.1               # 加载 .env 配置
+aiofiles==24.1.0                   # 异步文件读写
+jinja2==3.1.4                      # 模板引擎

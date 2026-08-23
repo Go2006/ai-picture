@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 旁白剪辑</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --card: #16213e;
+            --accent: #e94560;
+            --text: #eee;
+            --muted: #888;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+
+        h1 { font-size: 28px; margin-bottom: 8px; }
+        .subtitle { color: var(--muted); margin-bottom: 32px; font-size: 14px; }
+
+        .step-card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .step-card h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .step-num {
+            background: var(--accent);
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: bold;
+        }
+
+        label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--muted); }
+        input, select, textarea {
+            width: 100%;
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: #eee;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        textarea { min-height: 80px; resize: vertical; }
+        select { cursor: pointer; }
+
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 24px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity .2s;
+        }
+        .btn:hover { opacity: .85; }
+        .btn:disabled { opacity: .4; cursor: not-allowed; }
+        .btn-sm { padding: 6px 16px; font-size: 12px; }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+        }
+
+        .result-box {
+            background: #0a0a1a;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 12px;
+            font-size: 14px;
+            line-height: 1.8;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .hidden { display: none; }
+
+        .row { display: flex; gap: 12px; }
+        .row > * { flex: 1; }
+
+        .status-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .status-ok { background: #2e7d32; }
+        .status-err { background: #c62828; }
+        .status-warn { background: #e65100; }
+
+        /* 进度条 */
+        .progress-wrap { margin: 16px 0; }
+        .progress-bar {
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width .3s;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <h1>🎬 AI 旁白剪辑</h1>
+    <p class="subtitle">上传视频 → AI 写旁白 → 语音合成 → 自动剪辑成片</p>
+
+    <!-- ============ 步骤1: 上传视频 ============ -->
+    <div class="step-card">
+        <h2><span class="step-num">1</span> 上传视频素材</h2>
+        <input type="file" id="fileInput" accept="video/*">
+        <button class="btn btn-sm" onclick="uploadVideo()">上传</button>
+        <span id="uploadStatus" style="margin-left: 12px; font-size: 13px;"></span>
+
+        <!-- 已上传视频列表 -->
+        <div id="videoList" class="result-box hidden" style="margin-top: 12px;"></div>
+    </div>
+
+    <!-- ============ 步骤2: 分析画面 + 生成旁白 ============ -->
+    <div class="step-card">
+        <h2><span class="step-num">2</span> 生成旁白文案</h2>
+
+        <div class="row">
+            <div>
+                <label>旁白风格</label>
+                <select id="styleSelect">
+                    <option value="故事风">📖 故事风</option>
+                    <option value="纪录片风">🎙️ 纪录片风</option>
+                    <option value="悬疑风">🔍 悬疑风</option>
+                    <option value="轻松日常">☕ 轻松日常</option>
+                    <option value="营销带货">🔥 营销带货</option>
+                </select>
+            </div>
+            <div>
+                <label>旁白时长 (秒)</label>
+                <input type="number" id="durationInput" value="30" min="10" max="300">
+            </div>
+        </div>
+
+        <label>视频画面描述 <span style="color:var(--muted);font-weight:normal">（留空则 AI 自由发挥，或先点"分析画面"自动填写）</span></label>
+        <textarea id="descInput" placeholder="描述视频里有什么..."></textarea>
+
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-outline btn-sm" id="analyzeBtn" onclick="analyzeVideo()">🔍 分析画面（需要 Vision API）</button>
+            <button class="btn" onclick="generateNarration()">✨ 生成旁白</button>
+        </div>
+
+        <div id="narrationResult" class="result-box hidden"></div>
+    </div>
+
+    <!-- ============ 步骤3: 语音合成 ============ -->
+    <div class="step-card">
+        <h2><span class="step-num">3</span> 语音合成</h2>
+        <div class="row">
+            <div>
+                <label>音色</label>
+                <select id="voiceSelect">
+                    <option value="zh-CN-XiaoxiaoNeural">女声 - 晓晓（活泼）</option>
+                    <option value="zh-CN-YunxiNeural">男声 - 云希（沉稳）</option>
+                    <option value="zh-CN-XiaoyiNeural">女声 - 晓伊（温柔）</option>
+                </select>
+            </div>
+            <div>
+                <label>语速</label>
+                <select id="speedSelect">
+                    <option value="1.0">正常</option>
+                    <option value="0.8">慢一点</option>
+                    <option value="1.2">快一点</option>
+                </select>
+            </div>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--text);">
+            <input type="checkbox" id="matchDuration" style="width:auto; margin:0;">
+            ⏱ 自动匹配视频时长
+            <span id="matchHint" style="font-size:12px;">（语音自动调速 + 句间停顿，与视频时长对齐）</span>
+        </label>
+        <button class="btn" id="ttsBtn" onclick="synthesizeSpeech()" disabled>🔊 合成语音</button>
+        <div id="ttsResult" class="result-box hidden"></div>
+        <audio id="audioPlayer" controls class="hidden" style="width:100%; margin-top:12px;"></audio>
+    </div>
+
+    <!-- ============ 步骤4: 剪辑合成 ============ -->
+    <div class="step-card">
+        <h2><span class="step-num">4</span> 剪辑合成</h2>
+        <button class="btn" id="editBtn" onclick="composeVideo()" disabled>🎞️ 合成最终视频</button>
+        <div id="editResult" class="result-box hidden"></div>
+        <video id="videoPlayer" controls class="hidden" style="width:100%; max-width:640px; margin-top:12px; border-radius:8px;"></video>
+    </div>
+
+    <!-- ============ 已生成的视频 ============ -->
+    <div class="step-card">
+        <h2><span class="step-num">📼</span> 已生成的视频</h2>
+        <button class="btn btn-sm btn-outline" onclick="loadVideoResults()">🔄 刷新列表</button>
+        <div id="generatedList" class="result-box hidden" style="margin-top:12px;"></div>
+    </div>
+
+</div>
+
+<script>
+// ============================================
+// 全局状态 —— 贯穿整个流程
+// ============================================
+const state = {
+    videoId: '',         // 上传后获得
+    videoDuration: 0,    // 素材视频时长（秒），用于语音时长匹配
+    narration: '',       // AI 生成的旁白文案
+    segments: [],        // 分段信息
+    audioPath: '',       // TTS 合成的音频路径
+};
+
+// ============================================
+// 工具函数
+// ============================================
+async function api(url, options = {}) {
+    try {
+        const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+        return await res.json();
+    } catch (e) {
+        return { error: e.message };
+    }
+}
+
+function show(el, content) {
+    const elem = typeof el === 'string' ? document.getElementById(el) : el;
+    if (!elem) return;
+    elem.classList.remove('hidden');
+    if (content !== undefined) elem.textContent = typeof content === 'object' ? JSON.stringify(content, null, 2) : content;
+}
+
+function hide(el) {
+    const elem = typeof el === 'string' ? document.getElementById(el) : el;
+    if (elem) elem.classList.add('hidden');
+}
+
+function statusTag(text, cls) {
+    return `<span class="status-tag status-${cls}">${text}</span>`;
+}
+
+// ============================================
+// 步骤1: 上传视频
+// ============================================
+async function uploadVideo() {
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+    if (!file) return alert('请先选择视频文件');
+
+    document.getElementById('uploadStatus').textContent = '上传中...';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch('/api/upload/video', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (data.video_id) {
+        state.videoId = data.video_id;
+        state.videoDuration = data.duration || 0;
+        // 自动把"旁白时长"填成视频时长，方便生成与视频匹配的文案
+        if (data.duration) {
+            document.getElementById('durationInput').value = Math.round(data.duration);
+        }
+        document.getElementById('uploadStatus').innerHTML =
+            statusTag(`上传成功（时长 ${state.videoDuration}s）`, 'ok');
+        document.getElementById('analyzeBtn').disabled = false;
+        await loadVideoList();
+    } else {
+        document.getElementById('uploadStatus').innerHTML = statusTag('上传失败', 'err');
+    }
+}
+
+let videoCache = [];  // 已上传视频列表（含时长）
+
+async function loadVideoList() {
+    const res = await api('/api/upload/videos');
+    if (res.videos?.length) {
+        videoCache = res.videos;
+        const html = res.videos.map(v =>
+            `<div style="padding:4px 0; cursor:pointer" onclick="selectVideo('${v.video_id}')">
+                🎬 ${v.filename} (${v.size_mb}MB, ${v.duration}s)
+                ${state.videoId === v.video_id ? statusTag('已选中', 'ok') : ''}
+            </div>`
+        ).join('');
+        document.getElementById('videoList').innerHTML = html;
+        show('videoList');
+    }
+}
+
+function selectVideo(id) {
+    state.videoId = id;
+    const v = videoCache.find(x => x.video_id === id);
+    if (v) {
+        state.videoDuration = v.duration || 0;
+        document.getElementById('durationInput').value = Math.round(state.videoDuration);
+    }
+    document.getElementById('analyzeBtn').disabled = false;
+    document.getElementById('uploadStatus').innerHTML =
+        statusTag(`已选择: ${id}（时长 ${state.videoDuration}s）`, 'ok');
+    loadVideoList();
+}
+
+// ============================================
+// 步骤2: 分析画面 + 生成旁白
+// ============================================
+async function analyzeVideo() {
+    if (!state.videoId) return alert('请先上传视频');
+
+    const btn = document.getElementById('analyzeBtn');
+    btn.disabled = true;
+    btn.textContent = '分析中...';
+
+    const res = await api(`/api/edit/analyze/${state.videoId}`);
+    if (res.description) {
+        document.getElementById('descInput').value = res.description;
+        btn.innerHTML = '✅ 分析完成';
+    } else {
+        btn.innerHTML = '❌ 分析失败（需要配置 Vision API）';
+    }
+}
+
+async function generateNarration() {
+    const desc = document.getElementById('descInput').value || '一段风景或生活场景的视频';
+    const style = document.getElementById('styleSelect').value;
+    const duration = parseInt(document.getElementById('durationInput').value) || 30;
+
+    show('narrationResult', '⏳ 正在生成旁白...');
+    document.getElementById('narrationResult').classList.remove('hidden');
+
+    const res = await api('/api/narration/generate', {
+        method: 'POST',
+        body: JSON.stringify({
+            video_description: desc,
+            style: style,
+            duration_limit: duration,
+        }),
+    });
+
+    if (res.narration) {
+        state.narration = res.narration;
+        state.segments = res.segments;
+        document.getElementById('narrationResult').innerHTML = `
+            <strong>📝 ${res.title}</strong>
+            <div style="margin-top:8px;">${res.narration}</div>
+            <div style="margin-top:8px; color:var(--muted); font-size:12px;">
+                共 ${res.segments?.length || 0} 段 | 风格: ${res.style}
+            </div>
+        `;
+        document.getElementById('ttsBtn').disabled = false;
+    } else {
+        document.getElementById('narrationResult').innerHTML = `❌ 生成失败: ${JSON.stringify(res)}`;
+    }
+}
+
+// ============================================
+// 步骤3: 语音合成
+// ============================================
+async function synthesizeSpeech() {
+    if (!state.narration) return alert('请先生成旁白文案');
+
+    const btn = document.getElementById('ttsBtn');
+    btn.disabled = true;
+    btn.textContent = '合成中...';
+
+    // 勾选了"匹配视频时长"且有视频时长 → 传给后端做时长对齐
+    const matchDuration = document.getElementById('matchDuration').checked;
+    const target = matchDuration && state.videoDuration > 0 ? state.videoDuration : null;
+
+    const res = await api('/api/narration/synthesize', {
+        method: 'POST',
+        body: JSON.stringify({
+            text: state.narration,
+            voice: document.getElementById('voiceSelect').value,
+            speed: parseFloat(document.getElementById('speedSelect').value),
+            target_duration: target,
+        }),
+    });
+
+    if (res.audio_path) {
+        state.audioPath = res.audio_path;
+        if (res.matched) {
+            show('ttsResult', `✅ 合成完成 | 时长已匹配视频: ${res.duration?.toFixed(1)}s / 目标 ${res.target_duration?.toFixed(1)}s（语速 ${res.effective_speed?.toFixed(2)}）`);
+        } else if (res.target_duration) {
+            show('ttsResult', `⚠️ 合成完成 | 实际 ${res.duration?.toFixed(1)}s / 目标 ${res.target_duration?.toFixed(1)}s（已尽量接近）`);
+        } else {
+            show('ttsResult', `✅ 合成完成 | 时长: ${res.duration?.toFixed(1)} 秒`);
+        }
+        document.getElementById('editBtn').disabled = false;
+        btn.textContent = '✅ 合成完成';
+        btn.disabled = false;  // 允许重新合成
+
+        // 播放预览：从绝对路径提取相对于 outputs 的路径
+        const relativePath = res.audio_path.includes('outputs/')
+            ? res.audio_path.split('outputs/').pop()
+            : res.audio_path.split('/').pop();
+        const player = document.getElementById('audioPlayer');
+        player.src = `/api/edit/download/${relativePath}`;
+        player.classList.remove('hidden');
+        player.load();  // 强制刷新音频源
+    } else {
+        show('ttsResult', `❌ 合成失败: ${JSON.stringify(res)}`);
+        btn.disabled = false;
+        btn.textContent = '🔊 重试';
+    }
+}
+
+// ============================================
+// 步骤4: 剪辑合成
+// ============================================
+async function composeVideo() {
+    if (!state.videoId || !state.narration || !state.audioPath) {
+        return alert('请先完成前面步骤');
+    }
+
+    const btn = document.getElementById('editBtn');
+    btn.disabled = true;
+    btn.textContent = '剪辑中...';
+
+    const res = await api('/api/edit/compose', {
+        method: 'POST',
+        body: JSON.stringify({
+            video_id: state.videoId,
+            narration_text: state.narration,
+            audio_path: state.audioPath,
+            segments: state.segments,
+        }),
+    });
+
+    if (res.output_video_path) {
+        const filename = res.output_video_path.split('/').pop();
+        // 视频已自动剪辑到与语音一致：成片时长 == 旁白时长
+        const aligned = res.video_duration != null && res.audio_duration != null
+            && Math.abs(res.video_duration - res.audio_duration) < 0.3;
+        const matchInfo = res.video_duration != null
+            ? `<br>🎬 成片 ${res.video_duration?.toFixed(1)}s / 🔊 旁白 ${res.audio_duration?.toFixed(1)}s `
+              + (aligned ? '✅ 已对齐' : '⚠️ 略有偏差')
+            : '';
+        show('editResult', `
+            ✅ 剪辑完成！| 时长: ${res.duration?.toFixed(1)} 秒
+            ${matchInfo}
+            <br><br>
+            <a href="/api/edit/download/${filename}" download class="btn btn-sm" style="text-decoration:none;">
+                📥 下载视频
+            </a>
+        `);
+        btn.textContent = '✅ 完成';
+
+        // 在页面中播放生成的视频
+        const relativePath = res.output_video_path.includes('outputs/')
+            ? res.output_video_path.split('outputs/').pop()
+            : res.output_video_path;
+        const player = document.getElementById('videoPlayer');
+        player.src = '/api/edit/download/' + encodeURIComponent(relativePath);
+        player.classList.remove('hidden');
+        player.load();
+
+        // 刷新已生成视频列表
+        setTimeout(loadVideoResults, 500);
+    } else {
+        show('editResult', `❌ 剪辑失败: ${JSON.stringify(res)}`);
+        btn.disabled = false;
+        btn.textContent = '🎞️ 重试';
+    }
+}
+
+// ============================================
+// 已生成视频列表 & 播放
+// ============================================
+async function loadVideoResults() {
+    const res = await api('/api/edit/videos');
+    const container = document.getElementById('generatedList');
+    if (!res.videos?.length) {
+        container.innerHTML = '<span style="color:var(--muted)">暂无生成的视频</span>';
+        container.classList.remove('hidden');
+        return;
+    }
+    const html = res.videos.map(v => `
+        <div style="display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid #222;">
+            <span style="flex:1;">
+                🎬 <strong>${v.filename}</strong>
+                <span style="color:var(--muted); font-size:12px; margin-left:8px;">
+                    ${v.size_mb}MB | ${v.duration}s | ${v.created_at}
+                </span>
+            </span>
+            <button class="btn btn-sm btn-outline" onclick="playVideo('${v.filename}')">▶ 播放</button>
+            <a href="/api/edit/download/${encodeURIComponent(v.filename)}" download class="btn btn-sm" style="text-decoration:none;">📥 下载</a>
+        </div>
+    `).join('');
+    container.innerHTML = html;
+    container.classList.remove('hidden');
+}
+
+function playVideo(filename) {
+    const player = document.getElementById('videoPlayer');
+    player.src = '/api/edit/download/' + encodeURIComponent(filename);
+    player.classList.remove('hidden');
+    player.load();
+    player.play();
+    // 滚动到视频播放器
+    player.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ============================================
+// 初始化
+// ============================================
+loadVideoList();
+loadVideoResults();
+document.getElementById('analyzeBtn').disabled = !state.videoId;
+</script>
+</body>
+</html>

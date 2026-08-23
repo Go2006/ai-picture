@@ -1,0 +1,18 @@
+# 虚拟环境
+venv/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.pyo
+
+# 环境变量(含密钥,不要提交)
+.env
+
+# 运行时数据(用户上传的素材和生成的视频/音频)
+uploads/
+outputs/
+
+# 压缩包
+*.zip
+*.tar.gz
