@@ -62,11 +62,19 @@ cp .env.example .env
 
 ### 4. 启动
 
+
+source venv/bin/activate && python3 main.py
+//不配环境 用这个命令
+
+
 ```bash
 cd /data/projecte
 python main.py
+
+venv/bin/python main.py
 ```
 
+浏览器打开 `http://localhost:8000`
 浏览器打开 `http://localhost:8000`
 
 ## API 接口
@@ -76,9 +84,9 @@ python main.py
 | POST | `/api/upload/video` | 上传视频 |
 | GET  | `/api/upload/videos` | 列出已上传视频 |
 | POST | `/api/narration/generate` | 生成旁白文案 |
-| POST | `/api/narration/synthesize` | 旁白文字 → 语音（可传 `target_duration` 自动匹配视频时长） |
+| POST | `/api/narration/synthesize` | 旁白文字 → 语音 |
 | GET  | `/api/edit/analyze/{video_id}` | 分析视频画面 |
-| POST | `/api/edit/compose` | 剪辑合成最终视频（自动剪辑到与旁白时长完全对齐） |
+| POST | `/api/edit/compose` | 剪辑合成最终视频 |
 | GET  | `/api/edit/download/{filename}` | 下载生成的视频 |
 
 ## 自定义指南
@@ -88,15 +96,3 @@ python main.py
 - **换 TTS**：修改 `services/tts_service.py`，换成商业 TTS API
 - **改剪辑逻辑**：编辑 `services/ffmpeg_service.py` 的 `compose_video`
 - **加数据库**：在 `config.py` 加 DB 连接，在 `models/` 加 ORM 模型
-
-## 时长对齐机制
-
-**语音匹配视频时长**（`synthesize` 的 `target_duration`，前端勾选"⏱ 自动匹配视频时长"）：
-1. 按请求语速合成并测量时长；
-2. 偏差超容差时按 `实际/目标` 比例自动调速重合成（最多 2 轮），保留最接近的一次；
-3. 放到最慢仍不够长时，逐句合成并在句间插入停顿，精确补到目标时长。
-
-**视频自动剪辑匹配语音**（`/api/edit/compose` 自动完成）：
-1. 每个分段的画面时长按旁白实际节奏分配——有句级时间点（sidecar）时精确到"下一句起点"切点，否则按 AI 预估比例缩放；
-2. 画面不够时最后一段自动延长（素材循环补足）；
-3. 成片用 `-t` 精确截到旁白音频时长，视频与语音完全对齐。
